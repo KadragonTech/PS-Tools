@@ -1,0 +1,48 @@
+# Ignore PowerShell module build artifcts but keep source-controlled module files
+*.psd1
+*.psm1
+
+!PS-Tools.psd1
+!PS-Tools.psm1
+
+# Ignore Powershell cache, history, metadate, temp files
+*.ps1xml
+*.types.ps1xml
+*.Format.ps1xml
+*.history
+*.bak
+*.backup
+*.old
+
+# Ignore VS and VSCode settings
+.vscode/
+.vs/
+
+# Ignore any Debugging artifacts and logs
+.debug/
+*.debug
+*.log
+*.tmp
+
+# Ignore Pester test results
+TestResults.xml
+*.nunit.xml
+.pester/
+
+# Ignore NuGet / PSRepository / PSGallery / etc. building and publishing artifacts
+bin/
+obj/
+*.nupkg
+*.publish.xml
+
+# Ignore DotCover / coverage tools
+*.dotCover
+
+# Ignore OS junk
+Thumbs.db
+Desktop.ini
+.DS_Store
+*~
+
+# Ignore Git/GH_cli auth and temp
+.gh/
