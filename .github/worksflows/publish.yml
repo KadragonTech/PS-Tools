@@ -1,0 +1,31 @@
+name: Build and Publish to PSGallery
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-Publish:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repo
+        users: actions/Checkout@v3
+    
+      - name: Setup PowerShell
+        uses: actions/setup-powershell@v2
+        with:
+          pwsh-version: '7.5.2'
+      
+      - name: Run build script
+        run: |
+          pwsh -NoProfile -ExecutionPolicy Bypass -File .\Build.ps1
+
+      - name: Publish to PSGallery
+        env:
+          PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
+        run: |
+          $modulePath = Get-ChildItem -Path .\BuildOutPur -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          Write-Host "Publishing module from: $($modulePath.FullName)"
+          Publish-Module -Path $modulePath.FullName -NuGetApiKey $env:PSGALLERY_API_KEY -Force

@@ -25,6 +25,7 @@
 *.tmp
 
 # Ignore Pester test results
+\Tests\DirectoryTesting\
 TestResults.xml
 *.nunit.xml
 .pester/
