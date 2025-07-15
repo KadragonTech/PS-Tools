@@ -1,103 +1,77 @@
 <#
 .SYNOPSIS
-Tests if object is a string or a string like object.
+Validates whether a value or all ojects within a collection are strings or can be converted to strings.
 .DESCRIPTION
-Accepts an object and tests if it is either a string or can be cleanly converted to a string.
+Tests if the provided input is a string or can seamlessly be converted to a string.  
+When the -AllowCollections switch is specified, the function recursively validates each object within collections such as arrays or hashtables.  
+Additional switches control whether the input must already be a string (-StrictStringType) and whether null, empty, or whitespace-only strings are considered valid (-NotEmptyOrNull).  
+Collections are rejected by default unless -AllowCollections is specified.
 .PARAMETER value
-The object to test if it is a string or can seamlessly be converted to a string.
-.PARAMETER NotEmpty
-Verifies that the inputted object is not, or does not result in, an empty string.
+The object to test. Can be a single object or a collection of objects if -AllowCollections is set.
+.PARAMETER NotEmptyOrNull
+When set, verifies that the object, or each object in the collection, is not null, empty, or whitespace-only.
 .PARAMETER StrictStringType
-Verifies that the inputted object is already a string. Does not attempt to convert to a string.
+When set, verifies that the object, or each object in the collection, is already a string. No conversion attempts are made.
 .PARAMETER AllowCollections
-Verifies each item in a collection. Otherwise, collections will always result in failure.
+When set, allowes the inputted object to be a collection (array, hashtable, etc.) and validates each element recursively. When not set, collections will always fail the test.
 .EXAMPLE
-Test-StringLike -value = $string -NotEmpty
+Test-StringLike -Value "Bopp Bipp" -NotEmptyOrNull
 .EXAMPLE
-Test-StringLike -value = $HashTableObject -AllowCollections
+Test-StringLike -Value @("Bopp", "Bipp") -AllowCollections -StrictStringType
 #>
 function Test-StringLike {
     param(
-        [Parameter(Mandatory, HelpMessage = "The object to test if it is a string or can seamlessly be converted to a string.")]
+        [Parameter(HelpMessage = "The object to test. Can be a single object or a collection of objects if -AllowCollections is set.")]
         $Value,
 
-        [Parameter(HelpMessage = "Verifies that the inputted object is not, or does not result in, an empty string.")]
-        [switch]$NotEmpty,
+        [Parameter(HelpMessage = "When set, verifies that the object, or each object in the collection, is not null, empty, or whitespace-only.")]
+        [switch]$NotEmptyOrNull,
 
-        [Parameter(HelpMessage = "Verifies that the inputted object is already a string. Does not attempt to convert to a string.")]
+        [Parameter(HelpMessage = "When set, verifies that the object, or each object in the collection, is already a string. No conversion attempts are made.")]
         [switch]$StrictStringType,
 
-        [Parameter(HelpMessage = "Verifies each item in a collection. Otherwise, collections will always result in failure.")]
+        [Parameter(HelpMessage = "When set, allowes the inputted object to be a collection (array, hashtable, etc.) and validates each element recursively. When not set, collections will always fail the test.")]
         [switch]$AllowCollections
     )
-
-    $result = $true
-
-    # Short-circuits $false if a collection is passed and AllowCollections is not set
-    if ((-not $AllowCollections) -and (($Value -is [array]) -or ($Value -is [hashtable]))) {
+    if ((-not $AllowCollections) -and ($Value -is [System.Collections.IDictionary] -or $Value -is [System.Collections.IEnumerable])) {
         Write-Verbose "Collections are not allowed. Value is a collection, returning '$false'."
         return $false
     }
 
-    # Handles collection validation
-    if (($AllowCollections) -and (($Value -is [array]) -or ($Value -is [hashtable]))) {
-        Write-Verbose "Value is a collection. Performing collection validation"
-        $items = if ($Value -is [hashtable]) { $Value.Values } else { $Value }
-
-        # Empty collection edgecase validation
-        if ($StrictStringType -and $items.Count -eq 0) {
-            Write-Verbose "StrictStringType is enabled. Value is an empty collection. Setting result to false"
-            $result = $false
-        }
-        if ($NotEmpty -and $items.Count -eq 0) {
-            Write-Verbose "NotEmpty is enabled. Value is an empty collection. Setting result to false"
-            $result = $false
-        }
-
-        foreach ($object in $items) {
-            Write-Verbose "Validting collection item: $object"
-            try {
-                if ($StrictStringType) {
-                    $isString = $object -is [string]
-                    if (-not $isString) {
-                        Write-Verbose "StrictStringType is enabled. $object is not a string. Setting result to false"
-                        $result = $false
-                    }
-                }
-                $objectString = [string]$object
-                if ($NotEmpty -and [string]::IsNullOrWhiteSpace($objectString)) {
-                    Write-Verbose "NotEmpty is enabled. $object is null or whitespace, or results in null or whitespace"
-                    $result = $false
-                }
-            } catch {
-                Write-Verbose "Conversion failed for value: $object"
-                $result = $false
-            }
-            if (-not $result) { break }
-        }
+    # If value is a collection but collections are not allowed, fail fast
+    if (-not $AllowCollections -and ($Value -is [System.Collections.IEnumerable] -and -not ($Value -is [string]))) {
+        return $false
     }
 
-    # Handles single object validation
-    else {
-        Write-Verbose "Value is not a collection. Performing standard validation."
-        try {
-            if ($StrictStringType) {
-                $isString = $Value -is [string]
-                if (-not $isString) {
-                    Write-Verbose "StrictStringType is enabled. $Value is not a string. Setting result to false"
-                    $result = $false
-                }
+    # If collections are allowed and value is a collection, recurse into elements
+    if ($AllowCollections -and ($Value -is [System.Collections.IEnumerable] -and -not ($Value -is [string]))) {
+        # For IDictionary, iterate over Values only
+        $elements = if ($Value -is [System.Collections.IDictionary]) { $Value.Values } else { $Value }
+
+        # Handle empty collection edge cases for flags
+        if ($StrictStringType -and $elements.Count -eq 0) { return $false }
+        if ($NotEmptyOrNull -and $elements.Count -eq 0) { return $false }
+
+        foreach ($item in $elements) {
+            if (-not (Test-StringLike -Value $item -NotEmptyOrNull:$NotEmptyOrNull -StrictStringType:$StrictStringType -AllowCollections)) {
+                return $false
             }
-            $stringValue = [string]$Value
-            if ($NotEmpty -and [string]::IsNullOrWhiteSpace($stringValue)) {
-                Write-Verbose "NotEmpty is enabled. $Value is null or whitespace, or results in null or whitespace"
-                $result = $false
-            }
-        } catch {
-            Write-Verbose "Conversion failed for value: $Value"
-            $result = $false
         }
+        return $true
     }
-    Write-Verbose "Returning result: $result"
-    return $result
+
+    # Scalar validation
+
+    if ($StrictStringType -and $Value -isnot [string]) {
+        return $false
+    }
+    try {
+        $stringValue = [string]$Value
+    } catch {
+        return $false
+    }
+    if ($NotEmptyOrNull -and [string]::IsNullOrWhiteSpace($stringValue)) {
+        return $false
+    }
+    return $true
 }

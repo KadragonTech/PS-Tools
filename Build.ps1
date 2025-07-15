@@ -20,4 +20,5 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Output "=== All checks passed ==="
 Write-Output "=== Running Deployment ==="
+.\Deploy.ps1
 

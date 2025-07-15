@@ -1,4 +1,4 @@
-@{
+﻿@{
     # Required
     RootModule           = 'PS-Tools.psm1'
     ModuleVersion        = '0.5.0'
@@ -11,10 +11,10 @@
     Description          = 'A collection of PowerShell tools and helper functions for scripting.'
 
     # Functions to export
-    FunctionsToExport    = '*'
+    FunctionsToExport    = ''
     CmdLetstoExport      = @()
     VariablesToExport    = @()
-    AliasesToEport       = @()
+    AliasesToExport      = @()
 
     # PowerShell Compatibility
     PowerShellVersion    = '5.1'

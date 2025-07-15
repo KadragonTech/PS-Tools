@@ -5,7 +5,7 @@ param (
 )
 
 $moduleName = "PS-Tools"
-$versionPath = Join-Path $OutputRoot "$moduleName\$Version"
+$versionPath = Join-Path $OutputRoot "$Version\$moduleName"
 if (-not (Test-Path $versionPath)) {
     New-Item -ItemType Directory -Path $versionPath -Force | Out-Null
 }
@@ -13,4 +13,4 @@ if (-not (Test-Path $versionPath)) {
 Write-Output "Coping module files to $versionPath"
 Copy-Item -Path "$PSScriptRoot\src\*" -Destination $versionPath -Recurse -Force
 
-Write-Host "Deployment complete."
+Write-Output "Deployment complete."
