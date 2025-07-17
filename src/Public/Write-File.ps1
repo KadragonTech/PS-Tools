@@ -1,34 +1,35 @@
 <#
 .SYNOPSIS
-Writes text to file.
+Writes Text to File.
 
 .DESCRIPTION
-Writes the given text string to the specfied file.
+Writes the given Text string to the specfied File.
 
-.PARAMETER text
-The text to be writen to the file.
+.PARAMETER Text
+The Text to be writen to the File.
 
-.PARAMETER file
-The file to be written to.
+.PARAMETER File
+The File to be written to.
 #>
 function Write-File {
-    [CmdletBinding()]
     param (
-        [Parameter(Mandatory)]
+        [CmdletBinding()]
+        [Parameter(Mandatory, HelpMessage = "The Text to write to the File. Can be a string, or any object that can be converted to a string as long it is not a collection.")]
         [ValidateScript({ Test-StringLike $_ })]
-        [string] $text,
-        [Parameter(Mandatory)]
-        [ValidateScript({ Test-StringLike $_ -NotEmpty })]
-        [string] $file
+        [string] $Text,
+
+        [Parameter(Mandatory, HelpMessage = "The path to the File to be written to. Must be a valid path to a File.")]
+        [ValidateScript({ Test-StringLike $_ -NotEmptyOrNull })]
+        [string] $File
     )
-    Write-Verbose "Write-File | Starting to write text to '$file'"
-    Write-Debug "Write-File | Text: '$text'"
+    Write-Verbose "Write-File | Starting to write Text to File: '$File'"
+    Write-Debug "Write-File | Text: '$Text'"
 
     try {
-        $text | Out-File -FilePath $file -Append
-        Write-Verbose "Write-File | Successfully wrote to '$file'"
+        $Text | Out-File -FilePath $File -Append
+        Write-Verbose "Write-File | Successfully wrote to '$File'"
     } catch {
-        Write-Warning "Write-File | Failed to write to '$file': $_"
+        Write-Warning "Write-File | Failed to write to '$File': $_"
         throw
     }
     Write-Verbose "Write-File | Ending Process"

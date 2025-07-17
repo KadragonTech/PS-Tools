@@ -4,6 +4,7 @@
 
 !PS-Tools.psd1
 !PS-Tools.psm1
+!PesterConfiguration.psd1
 
 # Ignore Powershell cache, history, metadate, temp files
 *.ps1xml
@@ -25,7 +26,7 @@
 *.tmp
 
 # Ignore Pester test results
-\Tests\DirectoryTesting\
+Tests/DirectoryTesting/
 TestResults.xml
 *.nunit.xml
 .pester/

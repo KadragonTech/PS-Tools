@@ -1,11 +1,13 @@
 # PSScriptAnalyzer disable PSUseWriteHost
 
 Write-Output "=== Running PSScriptAnalyzer ==="
-$lintResults = Invoke-ScriptAnalyzer -Path . -Recurse -Severity Warning, Error -ReportSummary
+$lintResultsProd = Invoke-ScriptAnalyzer -Path .\src -Recurse -Severity Warning, Error -ReportSummary
+$lintResultsTest = Invoke-ScriptAnalyzer -Path .\src -Recurse -Severity Warning, Error -ReportSummary -Settings ".\Tests\PSScriptAnalyzerSettingsTests.psd1"
 
-if ($lintResults.Count -gt 0) {
+if (($lintResultsProd.Count -gt 0) -or ($lintResultsTest.Count -gt 0)) {
     Write-Error "Linting failed!"
     $lintResults | Format-Table -AutoSize
+    $lintResultsTest | Format-Table -AutoSize
     exit 1
 }
 
@@ -19,6 +21,6 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Output "=== All checks passed ==="
-Write-Output "=== Running Deployment ==="
-.\Deploy.ps1
+#Write-Output "=== Running Deployment ==="
+#.\Deploy.ps1
 

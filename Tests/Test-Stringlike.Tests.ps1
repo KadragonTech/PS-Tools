@@ -1,3 +1,5 @@
+# PSScriptAnalyzer disable PSUseDeclaredVarsMoreThanAssignments
+
 # Requires Pester Version 5.0+
 
 # Ensure Pester is available
@@ -8,505 +10,562 @@
 # To install Pester
 # Install-Module Pester -Scope CurrentUser -Force
 
-Describe "Test-StringLike comprehensive tests" {
+$thrower = New-Object PSObject
+$thrower | Add-Member ScriptMethod ToString { throw "Can't convert to string" } -Force
 
+$testGroups = @(
+
+    # Group 1: No params set
+    # All collections should fail
+    @{
+        GroupNumber      = 1
+        GroupDescription = "No params set"
+        Params           = @()
+        Cases            = @(
+            @{  TestNumber      = 1
+                TestDescription = "Null"
+                Value           = $null
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "string-like objects"
+            }
+            @{  TestNumber      = 2 
+                TestDescription = "Empty String"
+                Value           = "" 
+                Expected        = $true 
+                ExitCode        = 0 
+                ReasonLike      = "empty string but"
+            }
+            @{  TestNumber      = 3
+                TestDescription = "White Space String"
+                Value           = "   "
+                Expected        = $true 
+                ExitCode        = 0
+                ReasonLike      = "empty string but"
+            }
+            @{  TestNumber      = 4
+                TestDescription = "Simple String"
+                Value           = "Bopp Bipp"
+                Expected        = $true 
+                ExitCode        = 0
+                ReasonLike      = "non-empty string"
+            }
+            @{  TestNumber      = 5
+                TestDescription = "Empty HashTable"
+                Value           = @{}
+                Expected        = $false 
+                ExitCode        = 3
+                ReasonLike      = "is a collection."
+            }
+            @{  TestNumber      = 6
+                TestDescription = "Empty Array"
+                Value           = @()
+                Expected        = $false 
+                ExitCode        = 3
+                ReasonLike      = "is a collection."
+            }
+        )
+    }
+
+    # Group 2: StrictStringType only
+    # All collections should fail
+    # All non-strings should fail
+    # All strings should pass
+    @{
+        GroupNumber      = 2
+        GroupDescription = "StrictStringType only"
+        Params           = @("StrictStringType")
+        Cases            = @(
+            @{  TestNumber      = 1
+                TestDescription = "Valid string"
+                Value           = "Hello"
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "non-empty string" 
+            }
+            @{  TestNumber      = 2
+                TestDescription = "Null"
+                Value           = $null
+                Expected        = $false
+                ExitCode        = 2
+                ReasonLike      = "not strings" 
+            }
+            @{  TestNumber      = 3
+                TestDescription = "Integer"
+                Value           = 42
+                Expected        = $false
+                ExitCode        = 2
+                ReasonLike      = "not strings" 
+            }
+            @{  TestNumber      = 4
+                TestDescription = "Empty string"
+                Value           = ""
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "empty string but" 
+            }
+            @{  TestNumber      = 5
+                TestDescription = "Empty array"
+                Value           = @()
+                Expected        = $false
+                ExitCode        = 3
+                ReasonLike      = "is a collection." 
+            }
+        )
+    }
+
+    # Group 2: NotEmptyOrNull only
+    # All collections should fail
+    # All empty strings should fail
+    # All objects that result in empty strings should fail
+    # All strings should pass
+    @{
+        GroupNumber      = 3
+        GroupDescription = "NotEmptyOrNull only"
+        Params           = @("NotEmptyOrNull")
+        Cases            = @(
+            @{  TestNumber      = 1
+                TestDescription = "Valid non-empty string"
+                Value           = "Ping"
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "non-empty string" 
+            }
+            @{  TestNumber      = 2
+                TestDescription = "Empty string"
+                Value           = ""
+                Expected        = $false
+                ExitCode        = 1
+                ReasonLike      = "empty string but" 
+            }
+            @{  TestNumber      = 3
+                TestDescription = "Whitespace-only string"
+                Value           = "   "
+                Expected        = $false
+                ExitCode        = 1
+                ReasonLike      = "empty string but" 
+            }
+            @{  TestNumber      = 4
+                TestDescription = "Null"
+                Value           = $null
+                Expected        = $false
+                ExitCode        = 1
+                ReasonLike      = "null, empty, or whitespace-only." 
+            }
+            @{  TestNumber      = 5
+                TestDescription = "Hashtable"
+                Value           = @{}
+                Expected        = $false
+                ExitCode        = 3
+                ReasonLike      = "collection" 
+            }
+        )
+    }
+
+    # Group 4: AllowCollections only
+    # All collections where all elements can be passed into a string should pass
+    # All other collections should fail
+    @{
+        GroupNumber      = 4
+        GroupDescription = "AllowCollections only"
+        Params           = @("AllowCollections")
+        Cases            = @(
+            @{  TestNumber      = 1
+                TestDescription = "Array of strings"
+                Value           = @("hello", "world")
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "string-like"
+            }
+            @{  TestNumber      = 2
+                TestDescription = "Array of null and string"
+                Value           = @($null, "test")
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "string-like"
+            }
+            @{  TestNumber      = 3
+                TestDescription = "Empty array"
+                Value           = @()
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "string-like"
+            }
+            @{  TestNumber      = 4
+                TestDescription = "Nested arrays"
+                Value           = @("a", @("b", @("c")))
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "string-like"
+            }
+            @{  TestNumber      = 5
+                TestDescription = "Hashtable with string values"
+                Value           = @{ a = "x"
+                    b        = "y" 
+                }
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "string-like"
+            }
+            @{  TestNumber      = 6
+                TestDescription = "Mixed convertible types"
+                Value           = @("x", 123, $true, 3.14)
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "string-like"
+            }
+            @{  TestNumber      = 7
+                TestDescription = "Custom object with string output"
+                Value           = [PSCustomObject]@{  ToString = { "custom" } }
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "string-like"
+            }
+            @{  TestNumber      = 8
+                TestDescription = "Collection with one unserializable object"
+                Value           = @("valid", $thrower)
+                Expected        = $false
+                ExitCode        = 4
+                ReasonLike      = "Conversion error"
+            }
+        )
+    }
+    
+    # Group 5: All Params
+    # All elements must be strings
+    # All elements must not be null, empty, or whitespace-only
+    @{
+        GroupNumber      = 5
+        GroupDescription = "All params set: AllowCollections, StrictStringType, NotEmptyOrNull"
+        Params           = @('AllowCollections', 'StrictStringType', 'NotEmptyOrNull')
+        Cases            = @(
+            @{  TestNumber      = 1
+                TestDescription = "All valid strings"
+                Value           = @( "a", "b", "c" )
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "string-like objects"
+            }
+            @{  TestNumber      = 2
+                TestDescription = "Contains empty string"
+                Value           = @( "a", "" )
+                Expected        = $false
+                ExitCode        = 1
+                ReasonLike      = "null, empty"
+            }
+            @{  TestNumber      = 3
+                TestDescription = "Contains whitespace string"
+                Value           = @( "a", " " )
+                Expected        = $false
+                ExitCode        = 1
+                ReasonLike      = "null, empty"
+            }
+            @{  TestNumber      = 4
+                TestDescription = "Contains non-string object"
+                Value           = @( "a", 5 )
+                Expected        = $false
+                ExitCode        = 2
+                ReasonLike      = "not strings"
+            }
+            @{  TestNumber      = 5
+                TestDescription = "Nested arrays, all valid strings"
+                Value           = @( "one", @( "two", @("three")))
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "string-like"
+            }
+            @{  TestNumber      = 6
+                TestDescription = "Nested arrays, one null"
+                Value           = @( "one", @($null, @("three")))
+                Expected        = $false
+                ExitCode        = 2
+                ReasonLike      = "not strings"
+            }
+            @{  TestNumber      = 7
+                TestDescription = "Empty array"
+                Value           = @()
+                Expected        = $false
+                ExitCode        = 2
+                ReasonLike      = "not strings."
+            }
+            @{  TestNumber      = 8
+                TestDescription = "Nested empty array"
+                Value           = @( "one", @())
+                Expected        = $false
+                ExitCode        = 2
+                ReasonLike      = "not strings."
+            }
+            @{  TestNumber      = 9
+                TestDescription = "HashTable with valid strings"
+                Value           = @{ a = "x"; b = "y" }
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "string-like"
+            }
+            @{  TestNumber      = 10
+                TestDescription = "HashTable with null value"
+                Value           = @{ a = "x"; b = $null }
+                Expected        = $false
+                ExitCode        = 2
+                ReasonLike      = "not strings."
+            }
+        )
+    }
+    
+    # Group 6: StrictStringType + AllowCollections
+    # All elements must be strings.
+    @{
+        GroupNumber      = 6
+        GroupDescription = "StrictStringType + AllowCollections"
+        Params           = @("StrictStringType", "AllowCollections")
+        Cases            = @(
+            @{  TestNumber      = 1
+                TestDescription = "Simple string"
+                Value           = "Hello"
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "non-empty string" 
+            }
+            @{  TestNumber      = 2
+                TestDescription = "Array of strings"
+                Value           = @("one", "two")
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "string-like" 
+            }
+            @{  TestNumber      = 3
+                TestDescription = "Array with $null"
+                Value           = @("one", $null)
+                Expected        = $false
+                ExitCode        = 2
+                ReasonLike      = "not strings" 
+            }
+            @{  TestNumber      = 4
+                TestDescription = "Empty array"
+                Value           = @()
+                Expected        = $false
+                ExitCode        = 2
+                ReasonLike      = "not strings" 
+            }
+            @{  TestNumber      = 5
+                TestDescription = "Hashtable of strings"
+                Value           = @{ a = "1"; b = "2" }
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "string-like" 
+            }
+            @{  TestNumber      = 6
+                TestDescription = "Hashtable with non-string"
+                Value           = @{ a = "1"; b = 2 }
+                Expected        = $false
+                ExitCode        = 2
+                ReasonLike      = "not strings" 
+            }
+            @{  TestNumber      = 7
+                TestDescription = "Non-string scalar"
+                Value           = 42
+                Expected        = $false
+                ExitCode        = 2
+                ReasonLike      = "not strings" 
+            }
+            @{  TestNumber      = 8
+                TestDescription = "Array with empty array inside"
+                Value           = @(@(), "X")
+                Expected        = $false
+                ExitCode        = 2
+                ReasonLike      = "not strings" 
+            }
+        )
+    }
+
+    # Group 7: StrictStringType + NotEmptyOrNull
+    # All collections should fail
+    # All non-strings should fail
+    # All null, empty, or whitespace-only strings should fail
+    # All strings that aren't null, empty, or whitespace-only should pass
+    @{
+        GroupNumber      = 7
+        GroupDescription = "StrictStringType + NotEmptyOrNull"
+        Params           = @('StrictStringType', 'NotEmptyOrNull')
+        Cases            = @(
+            @{  TestNumber      = 1
+                TestDescription = "Simple string"
+                Value           = "hello world"
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "non-empty string"
+            }
+            @{  TestNumber      = 1
+                TestDescription = "Empty string"
+                Value           = ""
+                Expected        = $false
+                ExitCode        = 1
+                ReasonLike      = "empty string but"
+            }
+            @{  TestNumber      = 3
+                TestDescription = "Whitespace-only string"
+                Value           = "   "
+                Expected        = $false
+                ExitCode        = 1
+                ReasonLike      = "empty string but"
+            }
+            @{  TestNumber      = 4
+                TestDescription = "Null value"
+                Value           = $null
+                Expected        = $false
+                ExitCode        = 2
+                ReasonLike      = "not strings"
+            }
+            @{  TestNumber      = 5
+                TestDescription = "Array of valid strings"
+                Value           = @("one", "two")
+                Expected        = $false
+                ExitCode        = 3
+                ReasonLike      = "collection"
+            }
+            @{  TestNumber      = 6
+                TestDescription = "Empty array"
+                Value           = @()
+                Expected        = $false
+                ExitCode        = 3
+                ReasonLike      = "collection"
+            }
+            @{  TestNumber      = 7
+                TestDescription = "String inside nested array"
+                Value           = @(@("nested"))
+                Expected        = $false
+                ExitCode        = 3
+                ReasonLike      = "collection"
+            }
+            @{  TestNumber      = 8
+                TestDescription = "Non-string value"
+                Value           = 12345
+                Expected        = $false
+                ExitCode        = 2
+                ReasonLike      = "not strings"
+            }
+        )
+    }
+
+    @{
+        GroupNumber      = 8
+        GroupDescription = "AllowCollections + NotEmptyOrNull"
+        Params           = @('AllowCollections', 'NotEmptyOrNull')
+        Cases            = @(
+            @{  TestNumber      = 1
+                TestDescription = "Valid string array"
+                Value           = @("a", "b")
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "string-like objects"
+            }
+            @{  TestNumber      = 2
+                TestDescription = "Includes whitespace string"
+                Value           = @("hello", "   ")
+                Expected        = $false
+                ExitCode        = 1
+                ReasonLike      = "null, empty, or whitespace-only"
+            }
+            @{  TestNumber      = 3
+                TestDescription = "Includes empty string"
+                Value           = @("hello", "")
+                Expected        = $false
+                ExitCode        = 1
+                ReasonLike      = "null, empty, or whitespace-only"
+            }
+            @{  TestNumber      = 4
+                TestDescription = "Includes '`$null'"
+                Value           = @("hello", $null)
+                Expected        = $false
+                ExitCode        = 1
+                ReasonLike      = "null, empty, or whitespace-only"
+            }
+            @{  TestNumber      = 5
+                TestDescription = "Includes array literal @()"
+                Value           = @("hello", @())
+                Expected        = $false
+                ExitCode        = 1
+                ReasonLike      = "null, empty, or whitespace-only"
+            }
+            @{  TestNumber      = 6
+                TestDescription = "Empty array input"
+                Value           = @()
+                Expected        = $false
+                ExitCode        = 1
+                ReasonLike      = "null, empty, or whitespace-only"
+            }
+            @{  TestNumber      = 7
+                TestDescription = "Array with a number"
+                Value           = @(123, "abc")
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "string-like objects"
+            }
+            @{  TestNumber      = 8
+                TestDescription = "Array with a hashtable"
+                Value           = @("hello", @{a = 1 })
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "string-like objects"
+            }
+            @{  TestNumber      = 9
+                TestDescription = "Hashtable with all valid values"
+                Value           = @{one = "x"; two = "y" }
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "string-like objects"
+            }
+            @{  TestNumber      = 10
+                TestDescription = "Hashtable with empty string value"
+                Value           = @{one = "x"; two = "" }
+                Expected        = $false
+                ExitCode        = 1
+                ReasonLike      = "null, empty, or whitespace-only"
+            }
+        )
+    }
+
+
+)
+
+$flatTestCases = foreach ($group in $testGroups) {
+    foreach ($case in $group.Cases) {
+        [PSCustomObject]@{
+            GroupNumber = $group.GroupNumber
+            TestNumber  = $case.TestNumber
+            Params      = $group.Params
+            Value       = $case.Value
+            Expected    = $case.Expected
+            ExitCode    = $case.ExitCode
+            ReasonLike  = $case.ReasonLike
+        }
+    }
+}
+
+Describe "Test-StringLike Comprehensive Testing" -ForEach $flatTestCases {
     BeforeAll {
         Import-Module "$PSScriptRoot\..\src\PS-Tools.psm1" -Force
+        $case = $_
+    }
+    
+    It "<case.groupnumber>.<case.testnumber>.Return" {
+        $paramSplat = @{ Value = $case.Value }
+        
+        foreach ($param in $case.params) {
+            $paramSplat[$param] = $true
+        }
+        
+        $result = Test-StringLike @paramSplat
+        $result | Should -BeExactly $case.Expected
     }
 
-    # Combo 1: No flags (NotEmpty=$false, StrictStringType=$false, AllowCollections=$false)
-    It "handles Value='abc' NotEmpty=False StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = "abc" }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=$true NotEmpty=False StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=123 NotEmpty=False StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = 123 }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=123.456 NotEmpty=False StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = 123.456 }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value='' NotEmpty=False StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = "" }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value='   ' NotEmpty=False StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = "   " }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=@('a','b','c') NotEmpty=False StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = @("a", "b", "c") }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@(1,'b',$true) NotEmpty=False StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = @(1, "b", $true) }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@(' ','b','a') NotEmpty=False StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = @(" ", "b", "a") }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{'One'=1;'Two'=2} NotEmpty=False StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = @{"One" = 1; "Two" = 2 } }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{'One'='Two';'Three'='Four'} NotEmpty=False StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = @{"One" = "Two"; "Three" = "Four" } }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{'One'='';'Two'=''} NotEmpty=False StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = @{"One" = ""; "Two" = "" } }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{'One'='Two';'Three'=$true;'Five'=' '} NotEmpty=False StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = @{"One" = "Two"; "Three" = $true; "Five" = " " } }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@() NotEmpty=False StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = @() }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{} NotEmpty=False StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = @{} }
-        (Test-StringLike @params) | Should -BeExactly $false
+    It "<case.groupnumber>.<case.testnumber>.ExitCode" {
+        $exitCode = Get-Variable -Scope Global -ValueOnly  -Name "Test-StringLikeExitCode"
+        $exitCode | Should -BeExactly $case.ExitCode
     }
 
-    # Combo 2: -NotEmpty only (NotEmpty=$true, StrictStringType=$false, AllowCollections=$false)
-    It "handles Value='abc' NotEmpty=True StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = "abc"; NotEmpty = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=$true NotEmpty=True StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = $true; NotEmpty = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=123 NotEmpty=True StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = 123; NotEmpty = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=123.456 NotEmpty=True StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = 123.456; NotEmpty = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value='' NotEmpty=True StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = ""; NotEmpty = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value='   ' NotEmpty=True StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = "   "; NotEmpty = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@('a','b','c') NotEmpty=True StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = @("a", "b", "c"); NotEmpty = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@(1,'b',$true) NotEmpty=True StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = @(1, "b", $true); NotEmpty = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{'One'=1;'Two'=2} NotEmpty=True StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = @{"One" = 1; "Two" = 2 }; NotEmpty = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@(' ','b','a') NotEmpty=True StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = @(" ", "b", "a"); NotEmpty = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{'One'='Two';'Three'='Four'} NotEmpty=True StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = @{"One" = "Two"; "Three" = "Four" }; NotEmpty = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{'One'='';'Two'=''} NotEmpty=True StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = @{"One" = ""; "Two" = "" }; NotEmpty = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{'One'='Two';'Three'=$true;'Five'=' '} NotEmpty=True StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = @{"One" = "Two"; "Three" = $true; "Five" = " " }; NotEmpty = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@() NotEmpty=True StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = @(); NotEmpty = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{} NotEmpty=True StrictStringType=False AllowCollections=False" {
-        $params = @{ Value = @{}; NotEmpty = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-
-    # Combo 3: -StrictStringType only (NotEmpty=$false, StrictStringType=$true, AllowCollections=$false)
-    It "handles Value='abc' NotEmpty=False StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = "abc"; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=$true NotEmpty=False StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = $true; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=123 NotEmpty=False StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = 123; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=123.456 NotEmpty=False StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = 123.456; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value='' NotEmpty=False StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = ""; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value='   ' NotEmpty=False StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = "   "; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=@('a','b','c') NotEmpty=False StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = @("a", "b", "c"); StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@(1,'b',$true) NotEmpty=False StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = @(1, "b", $true); StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@(' ','b','a') NotEmpty=False StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = @(" ", "b", "a"); StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{'One'=1;'Two'=2} NotEmpty=False StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = @{"One" = 1; "Two" = 2 }; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{'One'='Two';'Three'='Four'} NotEmpty=False StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = @{"One" = "Two"; "Three" = "Four" }; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{'One'='';'Two'=''} NotEmpty=False StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = @{"One" = ""; "Two" = "" }; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{'One'='Two';'Three'=$true;'Five'=' '} NotEmpty=False StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = @{"One" = "Two"; "Three" = $true; "Five" = " " }; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@() NotEmpty=False StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = @(); StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{} NotEmpty=False StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = @{}; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-
-    # Combo 4: -NotEmpty & -StrictStringType (NotEmpty=$true, StrictStringType=$true, AllowCollections=$false)
-    It "handles Value='abc' NotEmpty=True StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = "abc"; NotEmpty = $true; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=$true NotEmpty=True StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = $true; NotEmpty = $true; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=123 NotEmpty=True StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = 123; NotEmpty = $true; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=123.456 NotEmpty=True StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = 123.456; NotEmpty = $true; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value='' NotEmpty=True StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = ""; NotEmpty = $true; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value='   ' NotEmpty=True StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = "   "; NotEmpty = $true; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@('a','b','c') NotEmpty=True StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = @("a", "b", "c"); NotEmpty = $true; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@(1,'b',$true) NotEmpty=True StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = @(1, "b", $true); NotEmpty = $true; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@(' ','b','a') NotEmpty=True StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = @(" ", "b", "a"); NotEmpty = $true; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{'One'=1;'Two'=2} NotEmpty=True StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = @{"One" = 1; "Two" = 2 }; NotEmpty = $true; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{'One'='Two';'Three'='Four'} NotEmpty=True StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = @{"One" = "Two"; "Three" = "Four" }; NotEmpty = $true; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{'One'='';'Two'=''} NotEmpty=True StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = @{"One" = ""; "Two" = "" }; NotEmpty = $true; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{'One'='Two';'Three'=$true;'Five'=' '} NotEmpty=True StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = @{"One" = "Two"; "Three" = $true; "Five" = " " }; NotEmpty = $true; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@() NotEmpty=True StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = @(); NotEmpty = $true; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{} NotEmpty=True StrictStringType=True AllowCollections=False" {
-        $params = @{ Value = @{}; NotEmpty = $true; StrictStringType = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-
-    # Combo 5: -AllowCollections only (NotEmpty=$false, StrictStringType=$false, AllowCollections=$true)
-    It "handles Value='abc' NotEmpty=False StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = "abc"; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=$true NotEmpty=False StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=123 NotEmpty=False StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = 123; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=123.456 NotEmpty=False StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = 123.456; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value='' NotEmpty=False StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = ""; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value='   ' NotEmpty=False StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = "   "; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=@('a','b','c') NotEmpty=False StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = @("a", "b", "c"); AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=@(1,'b',$true) NotEmpty=False StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = @(1, "b", $true); AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=@(' ','b','a') NotEmpty=False StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = @(" ", "b", "a"); AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=@{'One'=1;'Two'=2} NotEmpty=False StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = @{"One" = 1; "Two" = 2 }; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=@{'One'='Two';'Three'='Four'} NotEmpty=False StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = @{"One" = "Two"; "Three" = "Four" }; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=@{'One'='';'Two'=''} NotEmpty=False StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = @{"One" = ""; "Two" = "" }; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=@{'One'='Two';'Three'=$true;'Five'=' '} NotEmpty=False StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = @{"One" = "Two"; "Three" = $true; "Five" = " " }; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=@() NotEmpty=False StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = @(); AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=@{} NotEmpty=False StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = @{}; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-
-    # Combo 6: -NotEmpty & -AllowCollections (NotEmpty=$true, StrictStringType=$false, AllowCollections=$true)
-    It "handles Value='abc' NotEmpty=True StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = "abc"; NotEmpty = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=$true NotEmpty=True StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = $true; NotEmpty = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=123 NotEmpty=True StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = 123; NotEmpty = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=123.456 NotEmpty=True StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = 123.456; NotEmpty = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value='' NotEmpty=True StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = ""; NotEmpty = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value='   ' NotEmpty=True StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = "   "; NotEmpty = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@('a','b','c') NotEmpty=True StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = @("a", "b", "c"); NotEmpty = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=@(1,'b',$true) NotEmpty=True StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = @(1, "b", $true); NotEmpty = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=@(' ','b','a') NotEmpty=True StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = @(" ", "b", "a"); NotEmpty = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{'One'=1;'Two'=2} NotEmpty=True StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = @{"One" = 1; "Two" = 2 }; NotEmpty = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=@{'One'='Two';'Three'='Four'} NotEmpty=True StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = @{"One" = "Two"; "Three" = "Four" }; NotEmpty = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=@{'One'='';'Two'=''} NotEmpty=True StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = @{"One" = ""; "Two" = "" }; NotEmpty = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{'One'='Two';'Three'=$true;'Five'=' '} NotEmpty=True StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = @{"One" = "Two"; "Three" = $true; "Five" = " " }; NotEmpty = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@() NotEmpty=True StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = @(); NotEmpty = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{} NotEmpty=True StrictStringType=False AllowCollections=True" {
-        $params = @{ Value = @{}; NotEmpty = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-
-    # Combo 7: -StrictStringType & -AllowCollections (NotEmpty=$false, StrictStringType=$true, AllowCollections=$true)
-    It "handles Value='abc' NotEmpty=False StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = "abc"; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=$true NotEmpty=False StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = $true; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=123 NotEmpty=False StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = 123; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=123.456 NotEmpty=False StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = 123.456; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value='' NotEmpty=False StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = ""; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value='   ' NotEmpty=False StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = "   "; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=@('a','b','c') NotEmpty=False StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = @("a", "b", "c"); StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=@(1,'b',$true) NotEmpty=False StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = @(1, "b", $true); StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@(' ','b','a') NotEmpty=False StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = @(" ", "b", "a"); StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=@{'One'=1;'Two'=2} NotEmpty=False StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = @{"One" = 1; "Two" = 2 }; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{'One'='Two';'Three'='Four'} NotEmpty=False StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = @{"One" = "Two"; "Three" = "Four" }; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=@{'One'='';'Two'=''} NotEmpty=False StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = @{"One" = ""; "Two" = "" }; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=@{'One'='Two';'Three'=$true;'Five'=' '} NotEmpty=False StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = @{"One" = "Two"; "Three" = $true; "Five" = " " }; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@() NotEmpty=False StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = @(); StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{} NotEmpty=False StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = @{}; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-
-    # Combo 8: -NotEmpty, -StrictStringType, & -AllowCollections (NotEmpty=$true, StrictStringType=$true, AllowCollections=$true)
-    It "handles Value='abc' NotEmpty=True StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = "abc"; NotEmpty = $true; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=$true NotEmpty=True StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = $true; NotEmpty = $true; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=123 NotEmpty=True StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = 123; NotEmpty = $true; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=123.456 NotEmpty=True StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = 123.456; NotEmpty = $true; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value='' NotEmpty=True StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = ""; NotEmpty = $true; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value='   ' NotEmpty=True StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = "   "; NotEmpty = $true; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@('a','b','c') NotEmpty=True StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = @("a", "b", "c"); NotEmpty = $true; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=@(1,'b',$true) NotEmpty=True StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = @(1, "b", $true); NotEmpty = $true; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@(' ','b','a') NotEmpty=True StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = @(" ", "b", "a"); NotEmpty = $true; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{'One'=1;'Two'=2} NotEmpty=True StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = @{"One" = 1; "Two" = 2 }; NotEmpty = $true; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{'One'='Two';'Three'='Four'} NotEmpty=True StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = @{"One" = "Two"; "Three" = "Four" }; NotEmpty = $true; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $true
-    }
-    It "handles Value=@{'One'='';'Two'=''} NotEmpty=True StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = @{"One" = ""; "Two" = "" }; NotEmpty = $true; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{'One'='Two';'Three'=$true;'Five'=' '} NotEmpty=True StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = @{"One" = "Two"; "Three" = $true; "Five" = " " }; NotEmpty = $true; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@() NotEmpty=True StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = @(); NotEmpty = $true; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
-    }
-    It "handles Value=@{} NotEmpty=True StrictStringType=True AllowCollections=True" {
-        $params = @{ Value = @{}; NotEmpty = $true; StrictStringType = $true; AllowCollections = $true }
-        (Test-StringLike @params) | Should -BeExactly $false
+    It "<case.groupnumber>.<case.testnumber>.StatusMessage" {
+        $status = Get-Variable -Scope Global -ValueOnly  -Name "Test-StringLikeStatus"
+        $status.Reason | Should -Match $case.ReasonLike
     }
 }
