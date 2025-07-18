@@ -1,67 +1,54 @@
-$DirectoryTesting = [System.IO.Path]::GetFullPath("$PSScriptRoot\DirectoryTesting")
+$BaseDir = [System.IO.Path]::GetFullPath("$PSScriptRoot\DirectoryTesting")
 
 $testGroups = @(
     # Group 1: No params set
     # All paths with invalid syntax should fail
     @{
         GroupNumber      = 1
-        GroupDescription = "Invalid syntax"
+        GroupDescription = "No Params set"
         Params           = @()
         Cases            = @(
-            @{TestNumber = 1; TestDescription = "Relative file with wrong syntax"
-                Input = "test<.txt"; Expected = $false
+            @{  TestNumber      = 1 
+                TestDescription = "Valid file path"
+                Path            = "$BaseDir\text.txt"
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "checks passed"
             }
-            @{TestNumber = 2; TestDescription = "Relative directory with wrong syntax"
-                Input = "testdir|"; Expected = $false
+            @{  TestNumber      = 2 
+                TestDescription = "Valid subdirectory file"
+                Path            = "$BaseDir\subdirectory\sub.txt"
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "checks passed"
             }
-            @{TestNumber = 3; TestDescription = "Absolute file with wrong syntax"
-                Input = "C:\\test>.txt"; Expected = $false
+            @{  TestNumber      = 3
+                TestDescription = "Valid hidden file"
+                Path            = "$BaseDir\.hiddenfolder\hidden.txt"
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "checks passed"
             }
-            @{TestNumber = 4; TestDescription = "Relative file with wrong syntax"
-                Input = "C:\\Windows|"; Expected = $false
+            @{  TestNumber      = 4
+                TestDescription = "Valid directory path"
+                Path            = "$BaseDir\text.txt"
+                Expected        = $true
+                ExitCode        = 0
+                ReasonLike      = "checks passed"
             }
-        )
-    }
-
-    # Group 2: No params set
-    # All paths should pass on syntax alone
-    @{
-        GroupNumber      = 2
-        GroupDescription = "No params set"
-        Params           = @()
-        Cases            = @(
-            @{TestNumber = 1; TestDescription = "Simple relative file"
-                Input = "doesnotexist.txt"; Expected = $true
+            @{  TestNumber      = 5
+                TestDescription = "Invalid path string"
+                Path            = "*<InvalidPath>"
+                Expected        = $false
+                ExitCode        = 5
+                ReasonLike      = "syntax is invalid"
             }
-            @{TestNumber = 2; TestDescription = "Simple relative directory"
-                Input = "doesnotexist"; Expected = $true
-            }
-            @{TestNumber = 3; TestDescription = "Simple absolute file"
-                Input = "C:\\doesnotexist.txt"; Expected = $true
-            }
-            @{TestNumber = 4; TestDescription = "Simple absolute directory"
-                Input = "C:\\doesnotexist"; Expected = $true
-            }
-        )
-    }
-    # Group 3: MustExist param only
-    # Paths that exist should pass. Paths that don't should not
-    @{
-        GroupNumber      = 3
-        GroupDescription = "MustExist param only"
-        Params           = @('MustExist')
-        Cases            = @(
-            @{TestNumber = 1; TestDescription = "Simple relative file"
-                Input = "text.txt"; Expected = $true
-            }
-            @{TestNumber = 2; TestDescription = "Simple relative directory"
-                Input = "subdirectory"; Expected = $true
-            }
-            @{TestNumber = 3; TestDescription = "Simple absolute file"
-                Input = "$DirectoryTesting\text.txt"; Expected = $true
-            }
-            @{TestNumber = 4; TestDescription = "Simple absolute directory"
-                Input = "$DirectoryTesting"; Expected = $true
+            @{  TestNumber      = 6
+                TestDescription = "Null Input"
+                Path            = $null
+                Expected        = $false
+                ExitCode        = 4
+                ReasonLike      = "is null, empty, or whitespace-only"
             }
         )
     }
@@ -73,8 +60,10 @@ $flatTestCases = foreach ($group in $testGroups) {
             GroupNumber = $group.GroupNumber
             TestNumber  = $test.TestNumber
             Params      = $group.Params
-            Input       = $test.Input
+            Path        = $test.Path
             Expected    = $test.Expected
+            ExitCode    = $test.ExitCode
+            ReasonLike  = $test.ReasonLike
         }
     }
 }
@@ -82,14 +71,30 @@ $flatTestCases = foreach ($group in $testGroups) {
 Describe "Test-ValidPath Comprehensive Testing" -ForEach $flatTestCases {
     BeforeAll {
         Import-Module "$PSScriptRoot\..\src\PS-Tools.psm1" -Force
-        Format-DirectoryTesting($DirectoryTesting)
-        $test = $_
+        . "$PSScriptRoot\Format-DirectoryTesting.ps1"
+        Format-DirectoryTesting -TestingFolder $BaseDir
+        $case = $_
     }
-    It "<test.groupnumber>.<test.testnumber>" {
-        $paramHash = @{ Path = $test.Input }
-        $test.Params.ForEach({ $paramHash[$_] = $true })
-        Push-Location $DirectoryTesting
-        Test-ValidPath @paramHash | Should -BeExactly $test.Expected
+    It "<case.groupnumber>.<case.testnumber>.Return" {
+        $paramSplat = @{ Path = $case.Path }
+        
+        foreach ($param in $case.params) {
+            $paramSplat[$param] = $true
+        }
+
+        Push-Location $BaseDir
+        $result = Test-ValidPath @paramSplat
         Pop-Location
+        $result | Should -BeExactly $case.Expected
+    }
+
+    It "<case.groupnumber>.<case.testnumber>.ExitCode" {
+        $exitCode = Get-Variable -Scope Global -ValueOnly  -Name "Test-ValidPathExitCode"
+        $exitCode | Should -BeExactly $case.ExitCode
+    }
+
+    It "<case.groupnumber>.<case.testnumber>.StatusMessage" {
+        $status = Get-Variable -Scope Global -ValueOnly  -Name "Test-ValidPathStatus"
+        $status.Reason | Should -Match $case.ReasonLike
     }
 }

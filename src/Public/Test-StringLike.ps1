@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 Validates whether a value — or each object within a collection — can be treated as a string.
 
@@ -26,6 +26,13 @@ When specified, requires that the value — or each element in the collection �
 .PARAMETER AllowCollections
 Allows the input to be a collection such as an array, or hashtable. Each element is validated individually. If not specified, passing a collection causes the function to fail.
 
+.OUTPUTS
+.OUTPUTS
+[bool]   Returns $true if the input passes all enabled validation checks; otherwise, $false.
+[void]   Sets the following diagnostic variables:
+         - $Test-StringLikeStatus
+         - $Test-StringLikeExitCode
+
 .EXAMPLE
 Test-StringLike -Value "Bopp Bipp" -NotEmptyOrNull
 
@@ -44,6 +51,15 @@ Returns $false. One element is `$null`, and `NotEmptyOrNull` is enabled.
 Test-StringLike -Value @(@(), "test") -AllowCollections -StrictStringType
 
 Returns $false. The empty array fails the strict string type check.
+
+.LINK
+Set-FunctionStatus
+.LINK
+https://learn.microsoft.com/en-us/powershell/scripting/developer/cmdlet/validating-parameter-input
+.LINK
+https://github.com/KadragonTech/PS-Tools/blob/main/README.md
+
+#>
 #>
 function Test-StringLike {
     [cmdletBinding()]

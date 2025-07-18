@@ -1,79 +1,159 @@
 <#
 .SYNOPSIS
-Tests if string is a valid path.
+Validates whether a given string is a syntactically valid file or directory path.
+
 .DESCRIPTION
-Accepts a string and tests if the string contains invalid characters for paths.
+Determines whether the provided string is a valid path.
+
+Additional checks can be enforced via optional parameters:
+- Use '-MustExist' to ensure that the path exists on disk.
+- Use '-PathType' to validate the expected path type: file, directory, or any.
+- Use '-FileExtensions' to require specific file extensions.
+- Use '-FailSilently' to allow the function to resolve or ignore certain errors automatically.
+
+Returns a Boolean result.
+Diagnostic metadata — such as `$ExitCode` and `$Reason` — is stored in `$Test-ValidPathStatus` and `$Test-ValidPathExitCode`.
+
 .PARAMETER Path
-The file or directory path to process. Can be relative or absolute path.
+The path to validate. Can be a string or a [System.Management.Automation.PathInfo] object. 
+If a string is provided, it must not be null, empty, or whitespace-only.
+
 .PARAMETER MustExist
-Ensures that the path exists on the disk, instead of simply being a valid path.
+If specified, the path must already exist on disk.
+
 .PARAMETER PathType
-Ensures that the path is of a specific type (Any, File, Directory, A, F, D). Defaults to Any
+Enforces the type of the path. Accepted values:
+- "any" (default): No type constraints
+- "file": Must be a file
+- "directory": Must be a directory
+
 .PARAMETER FileExtensions
-Ensures that the path corresponds to specified file extension(s) functions in combination with PathType File
+Requires the path to end with one or more specific file extensions.
+Accepted formats include: ".txt", ".docx", ".dll", etc.
+If specified, PathType must be set to "file".
+
 .PARAMETER FailSilently
-Alows some errors to fail silently. Will force PathType to 'file' if fileExtensions is set.
+Enables recovery behavior for certain validation failures:
+- Automatically sets `$FileExtensions` to `$null` if provided as an empty array.
+- Automatically sets `$PathType` to "file" if `$FileExtensions` are supplied.
+- Returns `$false` instead of throwing when an exception occurs during `[System.IO.Path]::GetFullPath()`.
+
+.OUTPUTS
+[bool]   Returns $true if the path is valid; otherwise, $false.
+[void]   Sets the following diagnostic variables:
+         - $Test-ValidPathStatus
+         - $Test-ValidPathExitCode
+
 .EXAMPLE
-Test-ValidPath "C:\MyFolder\report.csv" -PathType File
+Test-ValidPath "C:\MyFolder\report.csv" -PathType file
+
 .EXAMPLE
-Test-ValidPath "C:\Scripts\cleanup.ps1" -MustExist -PathType File -FileExtensions ".ps1"
+Test-ValidPath "C:\Scripts\cleanup.ps1" -MustExist -PathType file -FileExtensions ".ps1"
+
+.NOTES
+Exit codes are stored in `$Test-ValidPathExitCode`. The status object, containing both exit code and reason, is stored in `$Test-ValidPathStatus`.
+
+Exit Codes:
+  0 = Success
+  1 = MustExist failure
+  2 = PathType failure
+  3 = FileExtension failure
+  4 = Null/Invalid Path input
+  5 = Path syntax issues
+  6 = Invalid FileExtensions input
+  7 = Exception encountered
+
+.LINK
+https://learn.microsoft.com/en-us/dotnet/api/system.io.path.getfullpath
+https://learn.microsoft.com/en-us/dotnet/api/system.io.path.hasextension
+https://learn.microsoft.com/en-us/dotnet/api/system.io.path.getextension
+https://learn.microsoft.com/en-us/dotnet/api/system.io.path.getfilename
+https://learn.microsoft.com/en-us/dotnet/api/system.io.path.ispathrooted
+https://learn.microsoft.com/en-us/dotnet/api/system.stringcomparer.ordinalignorecase
+https://learn.microsoft.com/en-us/dotnet/api/system.management.automation.pathinfo
+https://learn.microsoft.com/en-us/powershell/scripting/developer/cmdlet/validating-parameter-input
+
+.LINK
+Set-FunctionStatus
+.LINK
+Test-StringLike
+.LINK
+https://github.com/KadragonTech/PS-Tools/blob/main/README.md
 #>
 function Test-ValidPath {
     [CmdletBinding()]
     [OutputType([bool])]
+    [Alias('Test-PathValid', 'Is-ValidPath')]
     param(
-        [Parameter(Mandatory, HelpMessage = "The file or directory path to validate. Can be relative or absolute path.")]
-        [ValidateScript({ Test-StringLike $_ -NotEmptyOrNull })]
+        [Parameter(HelpMessage = "The path to validate. Can be relative or absolute.")]
+        [ValidateScript({ 
+                if ($_ -is [System.Management.Automation.PathInfo]) {
+                    return $true
+                }
+                if (-Not(Test-StringLike $_ -NotEmptyOrNull -StrictStringType)) {
+                    Write-Verbose "Test-ValidPath | '`$Path' must be a string that is not null, empty, or whitespace-only"
+                    Write-Debug "Test-ValidPath | '`$Path': $Path"
+                    Set-FunctionStatus -ExitCode 4 -Reason "Path is either not a string, or is null, empty, or whitespace-only."
+                    return $false
+                }
+                return $true
+            })]
         [string]$Path,
 
-        [Parameter(HelpMessage = "Validates that the file or directory path already exists. Otherwise only checks that the Path appears valid.")]
+        [Parameter(HelpMessage = "Ensures that the path already exists on the drive.")]
         [switch]$MustExist,
 
-        [Parameter(HelpMessage = "Validates that the path is of a specific type (Any, File, Directory, A, F, D). Defaults to Any.")]
-        [ValidateScript({
-                if (-not (Test-StringLike $_ -NotEmptyOrNull)) { return $false }
-                $validInputs = @("any", "file", "directory", "a", "f", "d")
-                return $validInputs -contains $_.ToLower()
-            })]
+        [Parameter(HelpMessage = "Ensures the path is of the specified type: 'any', 'file', or 'directory'. Defaults to 'any'.")]
+        [ValidateSet("any", "file", "directory")]
         [string]$PathType = "any",
 
-        [Parameter(HelpMessage = "Validates that the path is a file with specified file extension(s). Works in combination with PathType File (F).")]
+        [Parameter(HelpMessage = "One or more allowed file extensions (e.g., '.txt', '.dll'). Used with PathType 'file'.")]
         [ValidateScript({
                 foreach ($ext in $_) {
-                    if ($ext -notmatch '^\.\w+$') { return $false }
+                    if ($ext -notmatch '^\.\w+$') {
+                        Write-Verbose "Test-ValidPath | Value in '`$FileExtensions' is not valid."
+                        Write-Debug "Test-ValidPath | Value: $ext"
+                        Set-FunctionStatus -ExitCode 6 -Reason "Value in FileExtensions is not valid."
+                        return $false 
+                    }
                 }
                 return $true
             })]
         [string[]]$FileExtensions,
 
-        [Parameter(HelpMessage = "Allows some errors to fail silently. Will force PathType to 'file' if fileExtensions is set.")]
+        [Parameter(HelpMessage = "Allows certain errors to be handled silently or corrected automatically.")]
         [switch]$FailSilently
     )
-    
-    $actualPath = [System.IO.Path]::GetFullPath($Path, (Get-Location).Path)
 
-    # Checks if path is syntactically valid.
-    if (-not (Test-Path $actualPath -IsValid )) {
-        Write-Verbose "Test-ValidPath | Path is not syntactically valid. Returning '$false'."
+    Set-FunctionStatus $null
+
+    # Logging
+    Write-Verbose "Test-ValidPath | Starting Validation."
+    Write-Debug "Test-ValidPath | '`$Path': $Path."
+    Write-Debug "Test-ValidPath | '`$PathType': $PathType."
+    Write-Debug ("Test-ValidPath | '`$FileExtensions': {0}." -f ($FileExtensions -join ', ' -replace '^$', '[Empty]' ))
+    Write-Debug "Test-ValidPath | '`$MustExist': $MustExist."
+    Write-Debug "Test-ValidPath | '`$FailSilently': $FailSilently."
+    
+    Write-Verbose "Test-ValidPath | Checking '`$Path' syntax using -IsValid"
+    
+    # Handles invalid $path syntax
+    if (-not (Test-Path $Path -IsValid )) {
+        Write-Verbose "Test-ValidPath | '`$Path' is not syntactically valid. Returning '$false'"
+        Write-Debug "Test-ValidPath | '`$Path': $Path"
+        Set-FunctionStatus -ExitCode 5 -Reason "Path syntax is invalid."
         return $false
     }
 
-    # Converts PathType to full word
-    $PathType = $PathType.ToLower()
-    switch -Regex ($PathType) {
-        '^a$' { $PathType = "any" }
-        '^f$' { $PathType = "file" }
-        '^d$' { $PathType = "directory" }
-    }
-
-    # Handles when an empty arrray is passed into FileExtension
+    # Handles empty FileExtensions arrays
     if ($PSBoundParameters.ContainsKey('FileExtensions') -and $FileExtensions.Count -eq 0) {
         if ($FailSilently) {
-            Write-Verbose "Test-ValidPath | FailSilently | FileExtensions was passed as empty array."
-            Write-Verbose "Test-ValidPath | FailSilently | Setting File extensions to 'null'."
+            Write-Verbose "Test-ValidPath | FailSilently | '`$FileExtensions' was passed as an empty array."
+            Write-Verbose "Test-ValidPath | FailSilently | Setting '`$FileExtensions' to '`$null'."
             $FileExtensions = $null
         } else {
-            Write-Warning "Test-ValidPath | FileExtensions was passed as an empty array! Returning '$false'"
+            Write-Warning "Test-ValidPath | '`$FileExtensions' was passed as an empty array! Returning '$false'"
+            Set-FunctionStatus -ExitCode 6 -Reason "FileExtensions is an empty array."
             return $false
         }
     }
@@ -81,59 +161,103 @@ function Test-ValidPath {
     # Handles when FileExtensions and PathType are not compatible
     if ($FileExtensions -and -not ($PathType -eq "file")) {
         if ($FailSilently) {
-            Write-Verbose "Test-ValidPath | FailSilently | Pathtype not set to 'file' when file extensions were passed!"
-            Write-Verbose "Test-ValidPath | FailSilently | Setting Pathtype to 'file'"
+            Write-Verbose "Test-ValidPath | FailSilently | '`$PathType' not set to 'file' when '`$FileExtensions' were specified!"
+            Write-Verbose "Test-ValidPath | FailSilently | Setting '`$PathType' to 'file'."
             $PathType = "file"
         } else {
-            Write-Warning "Test-ValidPath | Pathtype must be 'file' if file extensions are passed! Returning '$false'"
+            Write-Warning "Test-ValidPath | Pathtype must be 'file' if '`$FileExtensions' are passed! Returning '$false'"
+            Set-FunctionStatus -ExitCode  -Reason "PathType must be 'file' when FileExtensions was provided."
             return $false
         }
     }
 
-    # Handles verifying if the file exists on the system
+    # Normalizes $Path into a rooted absolute path
+    Write-Verbose "Test-ValidPath | Normalizing to absolute path using GetFullPath()."
+    try {
+        if (-not [System.IO.Path]::IsPathRooted($Path)) { 
+            Write-Verbose "Test-ValidPath | Supplied '`$Path' is not rooted. Getting full path."
+            $actualPath = [System.IO.Path]::GetFullPath($Path, (Get-Location).Path)
+            Write-Debug "Test-ValidPath | Generated full path is: $actualPath" 
+        } else {
+            Write-Verbose "Test-ValidPath | Supplied '`$Path' is already rooted."
+            $actualPath = [System.IO.Path]::GetFullPath($Path)
+        }
+        Write-Debug "Test-ValidPath | Calculated full path is: $actualPath"
+    } catch {
+        $msg = $_.Exception.Message
+        if ($FailSilently) {
+            Write-Verbose "Test-ValidPath | Exception occured during GetFullPath(). Returning '$false'"
+            Write-Debug "Test-ValidPath | Exception: $msg"
+            Set-FunctionStatus -ExitCode 7 -Reason "Exception occured during GetFullPath()."
+            return $false
+        } else {
+            Write-Error "Test-ValidPath | Exception occured during GetFullPath()."
+            Set-FunctionStatus -ExitCode 7 -Reason "Exception occured during GetFullPath()."
+            throw $_
+        }
+    }
+
+    # Handles verifying $Path according to params
     if ($MustExist) {
-        Write-Verbose "Test-ValidPath | MustExist is set. Checking if path exists on drive."
+        Write-Verbose "Test-ValidPath | '`$MustExist' is specified. Validating if '`$Path' exists on disk."
         if (-not (Test-Path $actualPath -PathType Any)) {
-            Write-Verbose "Test-ValidPath | Path does not exist when MustExist is set. Returning '$false'"
+            Write-Verbose "Test-ValidPath | '`$Path' does not exist when '`$MustExist' is specified. Returning '$false'"
+            Set-FunctionStatus -ExitCode 1 -Reason "`$Path' does not exist."
             return $false
         }
         switch ($PathType) {
             "directory" {
                 if (-not(Test-Path $actualPath -PathType Container)) {
-                    Write-Verbose "Test-ValidPath | PathType is set to 'directory' but path is a file. Returning '$false'"
+                    Write-Verbose "Test-ValidPath | `$Path' exists on disk, but is a file when expected directory. Returning '$false'"
+                    Set-FunctionStatus -ExitCode 2 -Reason "Path is a file, expected irectory."
                     return $false
                 }
             }
             "file" {
                 if (-not(Test-Path $actualPath -PathType Leaf)) {
-                    Write-Verbose "Test-ValidPath | PathType is set to 'file' but path is a directory. Returning '$false'"
+                    Write-Verbose "Test-ValidPath | `$Path' exists on disk, but is a directory when expcted file. Returning '$false'"
+                    Set-FunctionStatus -ExitCode 2 -Reason "Path is a directory, expcted file."
                     return $false
                 }
-    
-                # Handles verifying if the path looks like a valid path
             }
         }
     } else {
-        Write-Verbose "Test-ValidPath | MustExist is not set. Checking path string syntax."
+        Write-Verbose "Test-ValidPath | '`$MustExist' is not specified. Checking '`$Path' syntax."
 
-        $hasExtension = $actualPath -match '[^\\\/]\.\w+$'
+        $hasExtension = [System.IO.Path]::HasExtension($actualPath) -and ($actualPath -notmatch '[\\\/]\.[^\\\/]+$')
+        if ($hasExtension) {
+            Write-Verbose "Test-ValidPath | '`$Path' has an extension."
+            $ending = [System.IO.Path]::GetExtension($actualPath)
+        } else {
+            Write-Verbose "Test-ValidPath | '`$Path' does not have an extension."
+            $ending = [System.IO.Path]::GetFileName($actualPath)
+        }
         if ($PathType -eq "directory" -and $hasExtension) {
-            Write-Verbose "Test-ValidPath | Path type is set to directory but the path has an extension. Returning '$false'"
+            Write-Verbose "Test-ValidPath | '`$PathType' is set to 'directory' but '`$Path' has an extension. Returning '$false'"
+            Write-Debug "Test-ValidPath | '`$Path' ends in extension: $ending"
+            Set-FunctionStatus -ExitCode 2 -Reason "Path has an extension."
             return $false
         }
         if ($PathType -eq "file" -and -not $hasExtension) {
-            Write-Verbose "Test-ValidPath | Path type is set to file but the path does not have an extension. Returning '$false'"
+            Write-Verbose "Test-ValidPath | '`$PathType' is set to 'file' but '`$Path' does not have an extension. Returning '$false'"
+            Write-Debug "Test-ValidPath | '`$Path' ends in directory: $ending"
+            Set-FunctionStatus -ExitCode 2 -Reason "Path does not have an extension."
             return $false
         }
     }
 
+    # Handles $FileExtensions validation
     if ($FileExtensions) {
-        Write-Verbose "Test-ValidPath | File extensions were passed. Checking if file has a valid extension."
-        if (-not ($FileExtensions | Where-Object { $actualPath.EndsWith($_, [StringComparison]::InvariantCultureIgnoreCase) })) {
-            Write-Verbose "Test-ValidPath | File does not end with a valid extension. Returning '$false'"
+        Write-Verbose "Test-ValidPath | '`$FileExtensions' are specified. Checking if file has a valid extension."
+        if (-not ($FileExtensions | Where-Object { $actualPath.EndsWith($_, [StringComparison]::OrdinalIgnoreCase) })) {
+            Write-Verbose "Test-ValidPath | '`$Path' does not end with a valid extension. Returning '$false'"
+            $ending = [System.IO.Path]::GetFileName($actualPath)
+            Write-Debug "Test-ValidPath | '`$Path' ends with: $ending"
+            Set-FunctionStatus -ExitCode 3 -Reason "Path does not have a valid extension."
             return $false
         }
     }
-    Write-Verbose "Test-ValidPath | Path passed all validations. Returning '$true'"
+    Write-Verbose "Test-ValidPath | All checks passed. Returning '$true' for: $actualPath"
+    Set-FunctionStatus -ExitCode 0 -Reason "All checks passed."
     return $true
 }
